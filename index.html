@@ -1,1 +1,1669 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minhas Notas</title>
 
+<style>
+*{box-sizing:border-box}
+
+body{
+  font-family:Arial,sans-serif;
+  margin:0;
+  background:#f4f6f8;
+  color:#1f2937
+}
+
+.wrap{
+  max-width:1050px;
+  margin:auto;
+  padding:20px
+}
+
+.card{
+  background:#fff;
+  border-radius:16px;
+  padding:20px;
+  margin-bottom:18px;
+  box-shadow:0 4px 18px rgba(0,0,0,.08)
+}
+
+h1{margin-top:0}
+
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px
+}
+
+label{
+  font-weight:700;
+  font-size:14px
+}
+
+input{
+  width:100%;
+  padding:11px;
+  border:1px solid #cbd5e1;
+  border-radius:9px;
+  font-size:16px
+}
+
+button{
+  border:0;
+  border-radius:9px;
+  padding:11px 16px;
+  font-weight:700;
+  cursor:pointer;
+  margin:6px 4px 0 0
+}
+
+.primary{background:#2563eb;color:#fff}
+.secondary{background:#e5e7eb}
+.success{background:#16a34a;color:#fff}
+.danger{background:#dc2626;color:#fff}
+
+.status{
+  padding:11px;
+  border-radius:9px;
+  margin-top:12px;
+  display:none
+}
+
+.ok{background:#dcfce7;color:#166534}
+.err{background:#fee2e2;color:#991b1b}
+.info{background:#dbeafe;color:#1e40af}
+
+.table-wrap{
+  overflow-x:auto
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:650px
+}
+
+th,td{
+  padding:9px;
+  border-bottom:1px solid #e5e7eb;
+  text-align:center
+}
+
+th:first-child,td:first-child{
+  text-align:left
+}
+
+th{
+  background:#f8fafc
+}
+
+.result{
+  font-weight:700
+}
+
+.pass{color:#15803d}
+.warn{color:#b45309}
+.fail{color:#dc2626}
+
+.small{
+  font-size:13px;
+  color:#64748b
+}
+
+@media(max-width:650px){
+  .grid{
+    grid-template-columns:1fr
+  }
+
+  .wrap{
+    padding:12px
+  }
+
+  .card{
+    padding:15px
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+  <div class="card">
+
+    <h1>📚 Minhas Notas</h1>
+
+    <p>Preencha suas notas e salve seu perfil online.</p>
+
+    <div class="grid">
+
+      <div>
+        <label for="nome">Nome</label>
+        <input
+          id="nome"
+          type="text"
+          placeholder="Digite seu nome"
+        >
+      </div>
+
+      <div>
+        <label for="codigo">Código pessoal (4 dígitos)</label>
+        <input
+          id="codigo"
+          type="password"
+          inputmode="numeric"
+          maxlength="4"
+          placeholder="Ex.: 4827"
+        >
+      </div>
+
+    </div>
+
+    <button class="primary" id="buscar">
+      🔎 Buscar notas preenchidas
+    </button>
+
+    <button class="success" id="salvar">
+      💾 Salvar alterações
+    </button>
+
+    <button class="secondary" id="novo">
+      🆕 Começar do zero
+    </button>
+
+    <div id="status" class="status"></div>
+
+    <p class="small">
+      O código é usado para evitar que outra pessoa consulte ou altere
+      seu perfil apenas sabendo seu nome.
+    </p>
+
+  </div>
+
+
+  <div class="card">
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Matéria</th>
+            <th>1º trimestre</th>
+            <th>2º trimestre</th>
+            <th>3º trimestre</th>
+            <th>Total</th>
+            <th>Situação</th>
+          </tr>
+
+        </thead>
+
+        <tbody id="tabela"></tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+
+  <div class="card">
+
+    <h2>Resumo</h2>
+
+    <div id="resumo"></div>
+
+  </div>
+
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+
+const SUPABASE_URL =
+"https://gjgysqycnzifdzyydynt.supabase.co";
+
+const SUPABASE_KEY =
+"sb_publishable_N14PSKY8zB_Ul9Na3roSDg_9s5b8J4F";
+
+
+const disciplinas = [
+
+  "Português",
+  "Inglês",
+  "Matemática",
+  "Ed. Financeira",
+  "Física",
+  "História",
+  "Sociologia",
+  "Filosofia",
+  "Informática",
+  "Comunicação e Vendas",
+  "Princípios Econômicos",
+  "Finanças",
+  "Liderança",
+  "RH",
+  "Marketing",
+  "Técnicas Integradas"
+
+];
+
+
+const sb =
+(
+  SUPABASE_URL.startsWith("https://") &&
+  !SUPABASE_KEY.startsWith("COLE_AQUI")
+)
+?
+supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+)
+:
+null;
+
+
+const tabela =
+document.getElementById("tabela");
+
+const resumo =
+document.getElementById("resumo");
+
+const statusBox =
+document.getElementById("status");
+
+
+function mostrarStatus(msg,tipo="info"){
+
+  statusBox.textContent = msg;
+
+  statusBox.className =
+    "status " + tipo;
+
+  statusBox.style.display =
+    "block";
+
+}
+
+
+function num(v){
+
+  const n = Number(v);
+
+  return Number.isFinite(n)
+    ? n
+    : 0;
+
+}
+
+
+function normalizarNome(v){
+
+  return v
+    .trim()
+    .replace(/\s+/g," ")
+    .toLowerCase();
+
+}
+
+
+function criarTabela(){
+
+  tabela.innerHTML = "";
+
+  disciplinas.forEach((d,i)=>{
+
+    const tr =
+      document.createElement("tr");
+
+    tr.innerHTML = `
+
+      <td>
+        <strong>${d}</strong>
+      </td>
+
+      <td>
+        <input
+          class="nota"
+          data-i="${i}"
+          data-t="1"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          placeholder="—"
+        >
+      </td>
+
+      <td>
+        <input
+          class="nota"
+          data-i="${i}"
+          data-t="2"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          placeholder="—"
+        >
+      </td>
+
+      <td>
+        <input
+          class="nota"
+          data-i="${i}"
+          data-t="3"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          placeholder="—"
+        >
+      </td>
+
+      <td
+        class="total"
+        id="total-${i}"
+      >
+        0
+      </td>
+
+      <td
+        class="situacao"
+        id="sit-${i}"
+      >
+        —
+      </td>
+
+    `;
+
+    tabela.appendChild(tr);
+
+  });
+
+
+  document
+    .querySelectorAll(".nota")
+    .forEach(el =>
+      el.addEventListener(
+        "input",
+        atualizarResumo
+      )
+    );
+
+
+  atualizarResumo();
+
+}
+
+
+function obterNotas(){
+
+  const notas =
+    disciplinas.map(() =>
+      [null,null,null]
+    );
+
+
+  document
+    .querySelectorAll(".nota")
+    .forEach(el=>{
+
+      const i =
+        Number(el.dataset.i);
+
+      const t =
+        Number(el.dataset.t) - 1;
+
+      notas[i][t] =
+        el.value === ""
+          ? null
+          : num(el.value);
+
+    });
+
+
+  return notas;
+
+}
+
+
+function preencher(notas){
+
+  criarTabela();
+
+
+  document
+    .querySelectorAll(".nota")
+    .forEach(el=>{
+
+      const i =
+        Number(el.dataset.i);
+
+      const t =
+        Number(el.dataset.t) - 1;
+
+      const v =
+        notas?.[i]?.[t];
+
+
+      el.value =
+        v === null ||
+        v === undefined
+          ? ""
+          : v;
+
+    });
+
+
+  atualizarResumo();
+
+}
+
+
+function atualizarResumo(){
+
+  let aprovadas = 0;
+
+  let recuperacao = 0;
+
+  let soma = 0;
+
+
+  disciplinas.forEach((_,i)=>{
+
+    const vals =
+      [1,2,3]
+      .map(t =>
+        document.querySelector(
+          `.nota[data-i="${i}"][data-t="${t}"]`
+        )?.value
+      )
+      .map(v =>
+        v === "" ||
+        v == null
+          ? 0
+          : num(v)
+      );
+
+
+    const total =
+      vals.reduce(
+        (a,b) => a+b,
+        0
+      );
+
+
+    document.getElementById(
+      `total-${i}`
+    ).textContent =
+      total;
+
+
+    const sit =
+      document.getElementById(
+        `sit-${i}`
+      );
+
+
+    if(total >= 180){
+
+      sit.textContent =
+        "Atingiu 180";
+
+      sit.className =
+        "situacao pass";
+
+      aprovadas++;
+
+    }else{
+
+      sit.textContent =
+        `Faltam ${180-total}`;
+
+      sit.className =
+        "situacao " +
+        (
+          total >= 140
+            ? "warn"
+            : "fail"
+        );
+
+      recuperacao++;
+
+    }
+
+
+    soma += total;
+
+  });
+
+
+  resumo.innerHTML = `
+
+    <p>
+      <strong>${aprovadas}</strong>
+      matéria(s) já atingiram 180 pontos.
+    </p>
+
+    <p>
+      <strong>${recuperacao}</strong>
+      matéria(s) ainda precisam de pontos.
+    </p>
+
+    <p>
+      Soma dos totais:
+      <strong>${soma}</strong>
+    </p>
+
+  `;
+
+}
+
+
+function validar(){
+
+  const nome =
+    document
+      .getElementById("nome")
+      .value
+      .trim();
+
+
+  const codigo =
+    document
+      .getElementById("codigo")
+      .value
+      .trim();
+
+
+  if(!nome){
+
+    mostrarStatus(
+      "Digite seu nome.",
+      "err"
+    );
+
+    return null;
+
+  }
+
+
+  if(!/^\d{4}$/.test(codigo)){
+
+    mostrarStatus(
+      "O código deve ter exatamente 4 dígitos.",
+      "err"
+    );
+
+    return null;
+
+  }
+
+
+  if(!sb){
+
+    mostrarStatus(
+      "O site ainda não está conectado ao Supabase.",
+      "err"
+    );
+
+    return null;
+
+  }
+
+
+  return {
+    nome,
+    codigo
+  };
+
+}
+
+
+document
+  .getElementById("salvar")
+  .addEventListener(
+    "click",
+    async()=>{
+
+      const dados =
+        validar();
+
+      if(!dados)
+        return;
+
+
+      const notas =
+        obterNotas();
+
+
+      mostrarStatus(
+        "Salvando notas online...",
+        "info"
+      );
+
+
+      const payload = {
+
+        nome:
+          dados.nome,
+
+        nome_busca:
+          normalizarNome(
+            dados.nome
+          ),
+
+        codigo:
+          dados.codigo,
+
+        notas:
+          notas,
+
+        atualizado_em:
+          new Date()
+            .toISOString()
+
+      };
+
+
+      const {error} =
+        await sb
+          .from("notas_alunos")
+          .upsert(
+            payload,
+            {
+              onConflict:
+                "nome_busca,codigo"
+            }
+          );
+
+
+      if(error){
+
+        console.error(error);
+
+        mostrarStatus(
+          "Não foi possível salvar: " +
+          error.message,
+          "err"
+        );
+
+        return;
+
+      }
+
+
+      mostrarStatus(
+        "Notas salvas com sucesso!",
+        "ok"
+      );
+
+    }
+  );
+
+
+document
+  .getElementById("buscar")
+  .addEventListener(
+    "click",
+    async()=>{
+
+      const dados =
+        validar();
+
+      if(!dados)
+        return;
+
+
+      mostrarStatus(
+        "Buscando suas notas...",
+        "info"
+      );
+
+
+      const {data,error} =
+        await sb
+          .from("notas_alunos")
+          .select(
+            "nome,notas"
+          )
+          .eq(
+            "nome_busca",
+            normalizarNome(
+              dados.nome
+            )
+          )
+          .eq(
+            "codigo",
+            dados.codigo
+          )
+          .maybeSingle();
+
+
+      if(error){
+
+        console.error(error);
+
+        mostrarStatus(
+          "Não foi possível buscar: " +
+          error.message,
+          "err"
+        );
+
+        return;
+
+      }
+
+
+      if(!data){
+
+        mostrarStatus(
+          "Nenhum perfil encontrado com esse nome e código.",
+          "err"
+        );
+
+        return;
+
+      }
+
+
+      preencher(
+        data.notas
+      );
+
+
+      document
+        .getElementById("nome")
+        .value =
+          data.nome;
+
+
+      mostrarStatus(
+        "Notas encontradas e carregadas!",
+        "ok"
+      );
+
+    }
+  );
+
+
+document
+  .getElementById("novo")
+  .addEventListener(
+    "click",
+    ()=>{
+
+      document
+        .getElementById("nome")
+        .value = "";
+
+
+      document
+        .getElementById("codigo")
+        .value = "";
+
+
+      preencher(
+        disciplinas.map(() =>
+          [null,null,null]
+        )
+      );
+
+
+      mostrarStatus(
+        "Tabela limpa. Você pode começar do zero.",
+        "info"
+      );
+
+    <!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minhas Notas</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+  font-family:Arial,sans-serif;
+  margin:0;
+  background:#f4f6f8;
+  color:#1f2937
+}
+
+.wrap{
+  max-width:1050px;
+  margin:auto;
+  padding:20px
+}
+
+.card{
+  background:#fff;
+  border-radius:16px;
+  padding:20px;
+  margin-bottom:18px;
+  box-shadow:0 4px 18px rgba(0,0,0,.08)
+}
+
+h1{margin-top:0}
+
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px
+}
+
+label{
+  font-weight:700;
+  font-size:14px
+}
+
+input{
+  width:100%;
+  padding:11px;
+  border:1px solid #cbd5e1;
+  border-radius:9px;
+  font-size:16px
+}
+
+button{
+  border:0;
+  border-radius:9px;
+  padding:11px 16px;
+  font-weight:700;
+  cursor:pointer;
+  margin:6px 4px 0 0
+}
+
+.primary{background:#2563eb;color:#fff}
+.secondary{background:#e5e7eb}
+.success{background:#16a34a;color:#fff}
+.danger{background:#dc2626;color:#fff}
+
+.status{
+  padding:11px;
+  border-radius:9px;
+  margin-top:12px;
+  display:none
+}
+
+.ok{background:#dcfce7;color:#166534}
+.err{background:#fee2e2;color:#991b1b}
+.info{background:#dbeafe;color:#1e40af}
+
+.table-wrap{
+  overflow-x:auto
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:650px
+}
+
+th,td{
+  padding:9px;
+  border-bottom:1px solid #e5e7eb;
+  text-align:center
+}
+
+th:first-child,td:first-child{
+  text-align:left
+}
+
+th{
+  background:#f8fafc
+}
+
+.result{
+  font-weight:700
+}
+
+.pass{color:#15803d}
+.warn{color:#b45309}
+.fail{color:#dc2626}
+
+.small{
+  font-size:13px;
+  color:#64748b
+}
+
+@media(max-width:650px){
+  .grid{
+    grid-template-columns:1fr
+  }
+
+  .wrap{
+    padding:12px
+  }
+
+  .card{
+    padding:15px
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+  <div class="card">
+
+    <h1>📚 Minhas Notas</h1>
+
+    <p>Preencha suas notas e salve seu perfil online.</p>
+
+    <div class="grid">
+
+      <div>
+        <label for="nome">Nome</label>
+        <input
+          id="nome"
+          type="text"
+          placeholder="Digite seu nome"
+        >
+      </div>
+
+      <div>
+        <label for="codigo">Código pessoal (4 dígitos)</label>
+        <input
+          id="codigo"
+          type="password"
+          inputmode="numeric"
+          maxlength="4"
+          placeholder="Ex.: 4827"
+        >
+      </div>
+
+    </div>
+
+    <button class="primary" id="buscar">
+      🔎 Buscar notas preenchidas
+    </button>
+
+    <button class="success" id="salvar">
+      💾 Salvar alterações
+    </button>
+
+    <button class="secondary" id="novo">
+      🆕 Começar do zero
+    </button>
+
+    <div id="status" class="status"></div>
+
+    <p class="small">
+      O código é usado para evitar que outra pessoa consulte ou altere
+      seu perfil apenas sabendo seu nome.
+    </p>
+
+  </div>
+
+
+  <div class="card">
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Matéria</th>
+            <th>1º trimestre</th>
+            <th>2º trimestre</th>
+            <th>3º trimestre</th>
+            <th>Total</th>
+            <th>Situação</th>
+          </tr>
+
+        </thead>
+
+        <tbody id="tabela"></tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+
+  <div class="card">
+
+    <h2>Resumo</h2>
+
+    <div id="resumo"></div>
+
+  </div>
+
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+
+const SUPABASE_URL =
+"https://gjgysqycnzifdzyydynt.supabase.co";
+
+const SUPABASE_KEY =
+"sb_publishable_N14PSKY8zB_Ul9Na3roSDg_9s5b8J4F";
+
+
+const disciplinas = [
+
+  "Português",
+  "Inglês",
+  "Matemática",
+  "Ed. Financeira",
+  "Física",
+  "História",
+  "Sociologia",
+  "Filosofia",
+  "Informática",
+  "Comunicação e Vendas",
+  "Princípios Econômicos",
+  "Finanças",
+  "Liderança",
+  "RH",
+  "Marketing",
+  "Técnicas Integradas"
+
+];
+
+
+const sb =
+(
+  SUPABASE_URL.startsWith("https://") &&
+  !SUPABASE_KEY.startsWith("COLE_AQUI")
+)
+?
+supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+)
+:
+null;
+
+
+const tabela =
+document.getElementById("tabela");
+
+const resumo =
+document.getElementById("resumo");
+
+const statusBox =
+document.getElementById("status");
+
+
+function mostrarStatus(msg,tipo="info"){
+
+  statusBox.textContent = msg;
+
+  statusBox.className =
+    "status " + tipo;
+
+  statusBox.style.display =
+    "block";
+
+}
+
+
+function num(v){
+
+  const n = Number(v);
+
+  return Number.isFinite(n)
+    ? n
+    : 0;
+
+}
+
+
+function normalizarNome(v){
+
+  return v
+    .trim()
+    .replace(/\s+/g," ")
+    .toLowerCase();
+
+}
+
+
+function criarTabela(){
+
+  tabela.innerHTML = "";
+
+  disciplinas.forEach((d,i)=>{
+
+    const tr =
+      document.createElement("tr");
+
+    tr.innerHTML = `
+
+      <td>
+        <strong>${d}</strong>
+      </td>
+
+      <td>
+        <input
+          class="nota"
+          data-i="${i}"
+          data-t="1"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          placeholder="—"
+        >
+      </td>
+
+      <td>
+        <input
+          class="nota"
+          data-i="${i}"
+          data-t="2"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          placeholder="—"
+        >
+      </td>
+
+      <td>
+        <input
+          class="nota"
+          data-i="${i}"
+          data-t="3"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          placeholder="—"
+        >
+      </td>
+
+      <td
+        class="total"
+        id="total-${i}"
+      >
+        0
+      </td>
+
+      <td
+        class="situacao"
+        id="sit-${i}"
+      >
+        —
+      </td>
+
+    `;
+
+    tabela.appendChild(tr);
+
+  });
+
+
+  document
+    .querySelectorAll(".nota")
+    .forEach(el =>
+      el.addEventListener(
+        "input",
+        atualizarResumo
+      )
+    );
+
+
+  atualizarResumo();
+
+}
+
+
+function obterNotas(){
+
+  const notas =
+    disciplinas.map(() =>
+      [null,null,null]
+    );
+
+
+  document
+    .querySelectorAll(".nota")
+    .forEach(el=>{
+
+      const i =
+        Number(el.dataset.i);
+
+      const t =
+        Number(el.dataset.t) - 1;
+
+      notas[i][t] =
+        el.value === ""
+          ? null
+          : num(el.value);
+
+    });
+
+
+  return notas;
+
+}
+
+
+function preencher(notas){
+
+  criarTabela();
+
+
+  document
+    .querySelectorAll(".nota")
+    .forEach(el=>{
+
+      const i =
+        Number(el.dataset.i);
+
+      const t =
+        Number(el.dataset.t) - 1;
+
+      const v =
+        notas?.[i]?.[t];
+
+
+      el.value =
+        v === null ||
+        v === undefined
+          ? ""
+          : v;
+
+    });
+
+
+  atualizarResumo();
+
+}
+
+
+function atualizarResumo(){
+
+  let aprovadas = 0;
+
+  let recuperacao = 0;
+
+  let soma = 0;
+
+
+  disciplinas.forEach((_,i)=>{
+
+    const vals =
+      [1,2,3]
+      .map(t =>
+        document.querySelector(
+          `.nota[data-i="${i}"][data-t="${t}"]`
+        )?.value
+      )
+      .map(v =>
+        v === "" ||
+        v == null
+          ? 0
+          : num(v)
+      );
+
+
+    const total =
+      vals.reduce(
+        (a,b) => a+b,
+        0
+      );
+
+
+    document.getElementById(
+      `total-${i}`
+    ).textContent =
+      total;
+
+
+    const sit =
+      document.getElementById(
+        `sit-${i}`
+      );
+
+
+    if(total >= 180){
+
+      sit.textContent =
+        "Atingiu 180";
+
+      sit.className =
+        "situacao pass";
+
+      aprovadas++;
+
+    }else{
+
+      sit.textContent =
+        `Faltam ${180-total}`;
+
+      sit.className =
+        "situacao " +
+        (
+          total >= 140
+            ? "warn"
+            : "fail"
+        );
+
+      recuperacao++;
+
+    }
+
+
+    soma += total;
+
+  });
+
+
+  resumo.innerHTML = `
+
+    <p>
+      <strong>${aprovadas}</strong>
+      matéria(s) já atingiram 180 pontos.
+    </p>
+
+    <p>
+      <strong>${recuperacao}</strong>
+      matéria(s) ainda precisam de pontos.
+    </p>
+
+    <p>
+      Soma dos totais:
+      <strong>${soma}</strong>
+    </p>
+
+  `;
+
+}
+
+
+function validar(){
+
+  const nome =
+    document
+      .getElementById("nome")
+      .value
+      .trim();
+
+
+  const codigo =
+    document
+      .getElementById("codigo")
+      .value
+      .trim();
+
+
+  if(!nome){
+
+    mostrarStatus(
+      "Digite seu nome.",
+      "err"
+    );
+
+    return null;
+
+  }
+
+
+  if(!/^\d{4}$/.test(codigo)){
+
+    mostrarStatus(
+      "O código deve ter exatamente 4 dígitos.",
+      "err"
+    );
+
+    return null;
+
+  }
+
+
+  if(!sb){
+
+    mostrarStatus(
+      "O site ainda não está conectado ao Supabase.",
+      "err"
+    );
+
+    return null;
+
+  }
+
+
+  return {
+    nome,
+    codigo
+  };
+
+}
+
+
+document
+  .getElementById("salvar")
+  .addEventListener(
+    "click",
+    async()=>{
+
+      const dados =
+        validar();
+
+      if(!dados)
+        return;
+
+
+      const notas =
+        obterNotas();
+
+
+      mostrarStatus(
+        "Salvando notas online...",
+        "info"
+      );
+
+
+      const payload = {
+
+        nome:
+          dados.nome,
+
+        nome_busca:
+          normalizarNome(
+            dados.nome
+          ),
+
+        codigo:
+          dados.codigo,
+
+        notas:
+          notas,
+
+        atualizado_em:
+          new Date()
+            .toISOString()
+
+      };
+
+
+      const {error} =
+        await sb
+          .from("notas_alunos")
+          .upsert(
+            payload,
+            {
+              onConflict:
+                "nome_busca,codigo"
+            }
+          );
+
+
+      if(error){
+
+        console.error(error);
+
+        mostrarStatus(
+          "Não foi possível salvar: " +
+          error.message,
+          "err"
+        );
+
+        return;
+
+      }
+
+
+      mostrarStatus(
+        "Notas salvas com sucesso!",
+        "ok"
+      );
+
+    }
+  );
+
+
+document
+  .getElementById("buscar")
+  .addEventListener(
+    "click",
+    async()=>{
+
+      const dados =
+        validar();
+
+      if(!dados)
+        return;
+
+
+      mostrarStatus(
+        "Buscando suas notas...",
+        "info"
+      );
+
+
+      const {data,error} =
+        await sb
+          .from("notas_alunos")
+          .select(
+            "nome,notas"
+          )
+          .eq(
+            "nome_busca",
+            normalizarNome(
+              dados.nome
+            )
+          )
+          .eq(
+            "codigo",
+            dados.codigo
+          )
+          .maybeSingle();
+
+
+      if(error){
+
+        console.error(error);
+
+        mostrarStatus(
+          "Não foi possível buscar: " +
+          error.message,
+          "err"
+        );
+
+        return;
+
+      }
+
+
+      if(!data){
+
+        mostrarStatus(
+          "Nenhum perfil encontrado com esse nome e código.",
+          "err"
+        );
+
+        return;
+
+      }
+
+
+      preencher(
+        data.notas
+      );
+
+
+      document
+        .getElementById("nome")
+        .value =
+          data.nome;
+
+
+      mostrarStatus(
+        "Notas encontradas e carregadas!",
+        "ok"
+      );
+
+    }
+  );
+
+
+document
+  .getElementById("novo")
+  .addEventListener(
+    "click",
+    ()=>{
+
+      document
+        .getElementById("nome")
+        .value = "";
+
+
+      document
+        .getElementById("codigo")
+        .value = "";
+
+
+      preencher(
+        disciplinas.map(() =>
+          [null,null,null]
+        )
+      );
+
+
+      mostrarStatus(
+        "Tabela limpa. Você pode começar do zero.",
+        "info"
+      );
+
+    }
+  );
+
+
+criarTabela();
+
+</script>
+
+</body>
+</html>
+  );
+
+
+criarTabela();
+
+</script>
+
+</body>
+  </html>
